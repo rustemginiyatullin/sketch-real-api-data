@@ -1,0 +1,23 @@
+{
+  "author" : "",
+  "commands" : [
+    {
+      "script" : "script.cocoascript",
+      "handler" : "onRun",
+      "shortcut" : "",
+      "name" : "ReadAPI",
+      "identifier" : "readapi"
+    }
+  ],
+  "menu" : {
+    "items" : [
+      "readapi"
+    ],
+    "title" : "ReadAPI"
+  },
+  "identifier" : "com.example.sketch.32ddd542-3290-40e6-a3c8-49c998dc720d",
+  "version" : "1.0",
+  "description" : "",
+  "authorEmail" : "",
+  "name" : "ReadAPI"
+}

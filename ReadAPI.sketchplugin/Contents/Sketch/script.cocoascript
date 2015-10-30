@@ -1,0 +1,155 @@
+var onRun = function(context) {
+
+  var doc = context.document,
+      app = [NSApplication sharedApplication];
+
+  var selectedLayers = context.selection,
+      selectedCount = selectedLayers.count();
+
+  var utils = {
+
+      getValByPath: function(path, json){
+          var pieces = path.split('.'),
+              currPath = json;
+
+          for(var i = 0; i < pieces.length; i++){
+              var val = pieces[i];
+              if(currPath[val] == undefined){
+                  return undefined;
+              } else {
+                  currPath = currPath[val];
+              }
+          }
+
+          return currPath;
+      },
+
+      parseLayer: function(layer, json){
+          var self = this;
+          var parseIndividualLayer = function(MSLayer){
+              var tagMatch = MSLayer.name().match(/\$([^\s]+)/),
+                  tagVal,
+                  val;
+
+              if(tagMatch != null && tagMatch[1]){
+                  tagVal = tagMatch[1].trim();
+              } else {
+                  return;
+              }
+
+              val = self.getValByPath(tagVal, json);
+              if(typeof val == 'undefined') return;
+
+              switch(MSLayer.class()){
+                  case MSTextLayer:
+                      MSLayer.setStringValue(String(val));
+                      MSLayer.adjustFrameToFit();
+                      break;
+                  case MSBitmapLayer:
+                      var isUrl = new RegExp('http(s)?\:\/\/.+').test(val),
+                          fileManager = [NSFileManager defaultManager],
+                          img;
+
+                      if(isUrl){
+                          img = NSImage.alloc().initWithContentsOfURL(NSURL.URLWithString(val));
+                      } else {
+                          if(fileManager.fileExistsAtPath(val)){
+                              img = NSImage.alloc().initWithContentsOfFile(val);
+                          }
+                      }
+
+                      if(img){
+                          MSLayer.setConstrainProportions(false);
+                          MSLayer.setRawImage_convertColourspace_collection(img, false, doc.documentData().images());
+                          MSLayer.frame().setWidth(img.size().width);
+                          MSLayer.frame().setHeight(img.size().height);
+                          MSLayer.setConstrainProportions(true);
+                      } else {
+                          log('Image file '+val+' not found');
+                      }
+
+                      break;
+              }
+          };
+
+          if(layer.class() == 'MSLayerGroup'){
+              var layers = layer.children(),
+                  layersCount = layers.count();
+
+              for(var i = 0; i < layersCount; i++){
+                  parseIndividualLayer(layers[i]);
+              }
+          } else {
+              parseIndividualLayer(layer);
+          }
+      }
+
+  };
+
+  function fetchData(url) {
+    // var url = 'http://api.tumblr.com/v2/blog/flatstack.tumblr.com/posts?limit=3&api_key=fuiKNFp9vQFvjLNvx4sUwti4Yb5yGutBN4Xh10LXZhhRKjWlV4'
+    var apiURL    = [NSURL URLWithString: url]
+    var request   = [NSURLRequest requestWithURL:apiURL]
+    var response  = NSURLConnection.sendSynchronousRequest_returningResponse_error(request, null, null)
+    if (response.length() === 0) {
+      alert('No available data from this URL')
+    }
+    else {
+      var dict = [NSJSONSerialization JSONObjectWithData:response
+                                      options:NSJSONReadingAllowFragments
+                                      error:nil]
+
+      var jsonStr = dict ? JSON.stringify(dict) : dict, json;
+
+      if(jsonStr.indexOf('[') == 0){
+          jsonStr = '{ "__sketchJsonArray": '+jsonStr+' }';
+      }
+
+      try {
+        json = JSON.parse(jsonStr);
+      } catch(e){
+          [app displayDialog:"Whoops, looks like that's not valid JSON."]
+        return;
+      }
+
+      if(json.__sketchJsonArray){
+          var dataArr = json.__sketchJsonArray;
+
+          for(var i = 0; i < selectedCount; i++){
+              var currLayer = selectedLayers[i],
+                  currObj = dataArr[i];
+
+              if(currObj){
+                  utils.parseLayer(currLayer, currObj);
+              }
+          }
+      } else {
+
+          for(var i = 0; i < selectedCount; i++){
+              utils.parseLayer(selectedLayers[i], json);
+          }
+      }
+    }
+  }
+
+  function getAPIUrl() {
+    var userInput = [doc askForUserInput:"Enter API URL:" initialValue:"http://"]
+
+    if (userInput !== null) {
+      fetchData(userInput)
+    }
+  }
+
+  function activate() {
+
+    if ([selectedLayers count] == 0) {
+      alert('Please select a group/symbol to fill the data into.', 'Destination group')
+    }
+    else {
+      getAPIUrl()
+    }
+  }
+
+  activate();
+
+};
